@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1622" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="HTMLens" />
+<meta name="description" content="A handy offline viewer for HTML files — render, inspect source, and preview at any screen size. Works in Chrome and Safari." />
+<title>HTMLens — HTML Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a131f; --bg-2:#0e1b2a; --panel:#0f1f30; --panel-2:#13283d;
+    --line:#1d3a55; --line-soft:#16304699;
+    --ink:#e8f1fb; --ink-dim:#9bb4cc; --ink-faint:#6f8ba5;
+    --accent:#46c8d8; --accent-2:#7aa2ff; --warm:#f0b66b; --danger:#ff6b7d; --ok:#6fdca0;
+    --radius:14px; --radius-sm:9px;
+    --shadow:0 18px 50px -22px rgba(0,0,0,.8);
+    --mono:"DM Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans:"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --display:"Cinzel", Georgia, serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef3f8; --bg-2:#e3ecf4; --panel:#ffffff; --panel-2:#f2f6fa;
+    --line:#cddceb; --line-soft:#dce6f0;
+    --ink:#16283b; --ink-dim:#46617b; --ink-faint:#7790a6;
+    --accent:#0d8da0; --accent-2:#3b62c9; --warm:#b9762a; --danger:#cc384a; --ok:#1d9c63;
+    --shadow:0 18px 44px -26px rgba(20,50,80,.45);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:radial-gradient(140% 100% at 80% -10%, var(--bg-2), var(--bg) 60%);
+    color:var(--ink); font-family:var(--sans);
+    font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; min-height:100%;
+    min-height:100dvh;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+  }
+  button{font-family:inherit;color:inherit;cursor:pointer;}
+  ::selection{background:color-mix(in srgb, var(--accent) 40%, transparent);}
+
+  /* ---------- top bar ---------- */
+  header.bar{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:11px 16px; border-bottom:1px solid var(--line);
+    background:color-mix(in srgb, var(--panel) 78%, transparent);
+    backdrop-filter:saturate(140%) blur(12px); -webkit-backdrop-filter:saturate(140%) blur(12px);
+    position:sticky; top:0; z-index:30;
+  }
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto;}
+  .lens{
+    width:34px;height:34px;border-radius:10px;flex:none;position:relative;
+    background:radial-gradient(circle at 32% 30%, var(--accent), #0c5a6b 55%, #06303a);
+    box-shadow:inset 0 0 0 1px #ffffff22, 0 6px 16px -6px var(--accent);
+  }
+  .lens::after{content:"";position:absolute;inset:8px;border-radius:50%;
+    background:radial-gradient(circle at 38% 35%, #ffffffcc, #ffffff10 45%, transparent 60%);
+    border:1px solid #ffffff35;}
+  .brand h1{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:.5px;margin:0;line-height:1;}
+  .brand span{display:block;font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--ink-faint);margin-top:3px;}
+
+  .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px;}
+  .seg button{
+    border:0;background:transparent;color:var(--ink-dim);font-size:13px;font-weight:500;
+    padding:7px 13px;border-radius:8px;transition:.15s;white-space:nowrap;
+  }
+  .seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink);box-shadow:0 1px 0 #ffffff10 inset, 0 4px 12px -8px #000;}
+  .seg button:hover{color:var(--ink);}
+
+  .actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .btn{
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim);
+    border-radius:10px;padding:8px 12px;font-size:13px;font-weight:500;
+    display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;
+  }
+  .btn:hover{color:var(--ink);border-color:color-mix(in srgb,var(--accent) 55%, var(--line));}
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),#0e8fa1);color:#04222a;border-color:transparent;font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.07);color:#04222a;}
+  .btn.icon{padding:8px 10px;}
+  .btn[hidden]{display:none;}
+  .btn svg{width:15px;height:15px;flex:none;}
+
+  /* ---------- workspace ---------- */
+  main{flex:1;display:flex;min-height:0;position:relative;}
+  .workspace{flex:1;display:flex;min-height:0;width:100%;}
+  .pane{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;}
+  .pane.code{border-right:1px solid var(--line);}
+  .workspace[data-mode="preview"] .pane.code{display:none;}
+  .workspace[data-mode="source"] .pane.preview{display:none;}
+
+  .pane-head{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:8px 12px;border-bottom:1px solid var(--line);
+    background:var(--panel);min-height:46px;
+  }
+  .pane-tag{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-right:auto;}
+  .chip{
+    border:1px solid var(--line);background:var(--bg-2);color:var(--ink-dim);
+    font-size:12px;padding:5px 9px;border-radius:8px;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:5px;
+  }
+  .chip[aria-pressed="true"]{color:var(--ink);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%, var(--bg-2));}
+  .chip:hover{color:var(--ink);}
+  .chip.warm[aria-pressed="true"]{border-color:var(--warm);background:color-mix(in srgb,var(--warm) 16%, var(--bg-2));}
+  .pane-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .sel{
+    background:var(--bg-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:8px;padding:5px 8px;font-size:12px;font-family:inherit;
+  }
+
+  /* ---------- code editor ---------- */
+  .editor{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--bg);}
+  .editor pre, .editor textarea{
+    margin:0;border:0;position:absolute;inset:0;width:100%;height:100%;
+    padding:16px 18px;font-family:var(--mono);font-size:13px;line-height:1.7;
+    tab-size:2;letter-spacing:0;white-space:pre;overflow:auto;
+    background:transparent;
+  }
+  .editor.wrap pre, .editor.wrap textarea{white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;}
+  .editor pre{color:var(--ink);pointer-events:none;z-index:1;overflow:hidden;}
+  .editor textarea{
+    color:transparent;caret-color:var(--accent);resize:none;z-index:2;
+    -webkit-text-fill-color:transparent;outline:none;
+  }
+  .editor textarea::placeholder{color:var(--ink-faint);-webkit-text-fill-color:var(--ink-faint);}
+  .t-tag{color:#7ec9ff;}
+  .t-attr{color:var(--warm);}
+  .t-string{color:#9be39b;}
+  .t-punct{color:var(--ink-faint);}
+  .t-comment{color:#5d7a93;font-style:italic;}
+  .t-doctype{color:#c99bff;}
+  :root[data-theme="light"] .t-tag{color:#1763b8;}
+  :root[data-theme="light"] .t-attr{color:#9a5a12;}
+  :root[data-theme="light"] .t-string{color:#1b7a3a;}
+  :root[data-theme="light"] .t-comment{color:#7a8aa0;}
+  :root[data-theme="light"] .t-doctype{color:#7a3fc0;}
+
+  /* ---------- preview ---------- */
+  .preview-stage{
+    flex:1;min-height:0;overflow:auto;background:
+      linear-gradient(var(--line-soft) 1px,transparent 1px) 0 0/22px 22px,
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px) 0 0/22px 22px,
+      var(--bg);
+    display:flex;align-items:flex-start;justify-content:center;padding:22px;
+  }
+  .frame-wrap{transition:width .25s ease;max-width:100%;}
+  .frame-shell{
+    background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+    border:1px solid var(--line);
+  }
+  .frame-wrap.bezel .frame-shell{border-radius:26px;padding:10px;background:#0c1622;border-color:#22425f;}
+  iframe#view{width:100%;border:0;background:#fff;display:block;border-radius:inherit;}
+  .frame-wrap.bezel iframe#view{border-radius:16px;}
+
+  /* ---------- empty state ---------- */
+  .empty{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:28px;gap:14px;z-index:5;
+    background:radial-gradient(120% 80% at 50% 0%, var(--bg-2), var(--bg));
+  }
+  .empty .lens{width:60px;height:60px;border-radius:18px;}
+  .empty h2{font-family:var(--display);font-weight:600;font-size:24px;margin:6px 0 0;}
+  .empty p{color:var(--ink-dim);max-width:380px;margin:0;}
+  .empty .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+  .kbd{font-family:var(--mono);font-size:11.5px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:var(--ink-dim);}
+
+  /* ---------- drag overlay ---------- */
+  .drop{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    background:color-mix(in srgb,var(--bg) 82%, transparent);backdrop-filter:blur(6px);}
+  .drop.show{display:flex;}
+  .drop .card{border:2px dashed var(--accent);border-radius:22px;padding:46px 60px;text-align:center;
+    background:var(--panel);box-shadow:var(--shadow);}
+  .drop h3{font-family:var(--display);margin:10px 0 4px;font-size:22px;}
+  .drop p{margin:0;color:var(--ink-dim);}
+
+  /* ---------- status bar ---------- */
+  footer.status{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:7px 16px;border-top:1px solid var(--line);background:var(--panel);
+    font-size:12px;color:var(--ink-faint);
+  }
+  footer.status .file{color:var(--ink-dim);font-family:var(--mono);display:flex;align-items:center;gap:7px;}
+  footer.status .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  footer.status .sig{margin-left:auto;color:var(--ink-faint);letter-spacing:.2px;}
+  footer.status .sig b{color:var(--ink-dim);font-weight:600;}
+
+  .toast{
+    position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:10px 16px;border-radius:11px;font-size:13px;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:.25s;z-index:120;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:760px){
+    .brand span{display:none;}
+    .workspace[data-mode="split"]{flex-direction:column;}
+    .workspace[data-mode="split"] .pane.code{border-right:0;border-bottom:1px solid var(--line);}
+    .preview-stage{padding:12px;}
+    .pane-tag{width:100%;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px;}
+</style>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <div class="lens" aria-hidden="true"></div>
+      <div><h1>HTMLens</h1><span>HTML Viewer</span></div>
+    </div>
+
+    <div class="seg" role="group" aria-label="View mode">
+      <button id="m-preview" aria-pressed="false">Preview</button>
+      <button id="m-source" aria-pressed="false">Source</button>
+      <button id="m-split" aria-pressed="true">Split</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="open">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h5l2 2h9v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
+        Open file
+      </button>
+      <button class="btn icon" id="install" hidden title="Install app">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg>
+      </button>
+      <button class="btn icon" id="theme" title="Toggle theme" aria-label="Toggle light or dark theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="workspace" data-mode="split" id="workspace">
+      <!-- CODE -->
+      <section class="pane code">
+        <div class="pane-head">
+          <span class="pane-tag">Source</span>
+          <div class="pane-tools">
+            <button class="chip" id="wrap" aria-pressed="false">Wrap</button>
+            <button class="chip" id="copy">Copy</button>
+            <button class="chip" id="download">Download</button>
+          </div>
+        </div>
+        <div class="editor" id="editor">
+          <pre id="hl" aria-hidden="true"></pre>
+          <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
+            placeholder="Paste HTML here, open a file, or drop one anywhere…"></textarea>
+        </div>
+      </section>
+
+      <!-- PREVIEW -->
+      <section class="pane preview">
+        <div class="pane-head">
+          <span class="pane-tag">Preview</span>
+          <div class="pane-tools">
+            <select class="sel" id="device" aria-label="Viewport width">
+              <option value="0">Responsive</option>
+              <option value="375">Mobile · 375</option>
+              <option value="768">Tablet · 768</option>
+              <option value="1280">Desktop · 1280</option>
+            </select>
+            <select class="sel" id="zoom" aria-label="Zoom">
+              <option value="0.5">50%</option>
+              <option value="0.75">75%</option>
+              <option value="1" selected>100%</option>
+              <option value="1.25">125%</option>
+            </select>
+            <button class="chip warm" id="scripts" aria-pressed="true" title="Allow scripts in the previewed page">JS</button>
+            <button class="chip" id="reload" title="Reload preview">Reload</button>
+            <button class="chip" id="newtab" title="Open preview in a new tab">Open ↗</button>
+          </div>
+        </div>
+        <div class="preview-stage" id="stage">
+          <div class="frame-wrap" id="frameWrap">
+            <div class="frame-shell">
+              <iframe id="view" title="HTML preview"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation"></iframe>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="empty" id="empty">
+      <div class="lens" aria-hidden="true"></div>
+      <h2>Bring your HTML into focus</h2>
+      <p>Open a <span class="kbd">.html</span> file, paste markup, or drop a file anywhere on the window. Everything renders right here — fully offline, in Chrome or Safari.</p>
+      <div class="row">
+        <button class="btn primary" id="open2">Open a file</button>
+        <button class="btn" id="sample">Load a sample</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="status">
+    <span class="file"><span class="dot" id="dot"></span><span id="fname">No file</span></span>
+    <span id="stat-lines">0 lines</span>
+    <span id="stat-size">0 B</span>
+    <span class="sig">Designed &amp; Architected by <b>Krishnamurthy Kandregula</b> · Made by Claude</span>
+  </footer>
+
+  <div class="drop" id="drop"><div class="card">
+    <div class="lens" style="margin:0 auto;width:46px;height:46px;border-radius:14px" aria-hidden="true"></div>
+    <h3>Drop to view</h3><p>Release an .html file anywhere</p>
+  </div></div>
+
+  <div class="toast" id="toast"></div>
+  <input type="file" id="file" accept=".html,.htm,text/html" hidden />
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(s){ return document.querySelector(s); };
+  var LS = "htmlens.v1";
+
+  var state = {
+    html:"", filename:"", mode:"split", device:0, zoom:1,
+    wrap:false, scripts:true, theme:"dark"
+  };
+
+  var els = {
+    src:$("#src"), hl:$("#hl"), editor:$("#editor"), view:$("#view"),
+    workspace:$("#workspace"), empty:$("#empty"), stage:$("#stage"),
+    frameWrap:$("#frameWrap"), fname:$("#fname"), dot:$("#dot"),
+    statLines:$("#stat-lines"), statSize:$("#stat-size"),
+    device:$("#device"), zoom:$("#zoom"), file:$("#file"), toast:$("#toast"),
+    drop:$("#drop"), install:$("#install")
+  };
+
+  /* ---------- persistence ---------- */
+  function save(){
+    try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){}
+  }
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem(LS) || "null");
+      if(s && typeof s === "object"){ for(var k in state){ if(k in s) state[k]=s[k]; } }
+    }catch(e){}
+  }
+
+  /* ---------- syntax highlighting ---------- */
+  function esc(t){ return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  function hlAttrs(s){
+    var out="", last=0, m;
+    var re=/(\s+)([^\s=\/>]+)(\s*=\s*)?("[^"]*"|'[^']*'|[^\s>]+)?/g;
+    while((m=re.exec(s))){
+      out+=esc(m[1]);
+      out+='<span class="t-attr">'+esc(m[2])+"</span>";
+      if(m[3]) out+='<span class="t-punct">'+esc(m[3])+"</span>";
+      if(m[4]) out+='<span class="t-string">'+esc(m[4])+"</span>";
+      last=re.lastIndex;
+    }
+    out+=esc(s.slice(last));
+    return out;
+  }
+  function hlTag(s){
+    var res="", rest=s, m;
+    m=/^(<\/?)/.exec(rest); res+='<span class="t-punct">'+esc(m[1])+"</span>"; rest=rest.slice(m[1].length);
+    m=/^([a-zA-Z][\w:-]*)/.exec(rest);
+    if(m){ res+='<span class="t-tag">'+esc(m[1])+"</span>"; rest=rest.slice(m[1].length); }
+    var tail="", e=/(\/?\s*>)\s*$/.exec(rest);
+    if(e){ tail='<span class="t-punct">'+esc(e[1])+"</span>"; rest=rest.slice(0,e.index); }
+    return res + hlAttrs(rest) + tail;
+  }
+  function highlight(src){
+    if(src.length > 120000) return esc(src); // keep big files snappy
+    var html="", i=0, n=src.length;
+    while(i<n){
+      if(src.substr(i,4)==="<!--"){
+        var j=src.indexOf("-->",i); j=(j===-1)?n:j+3;
+        html+='<span class="t-comment">'+esc(src.slice(i,j))+"</span>"; i=j; continue;
+      }
+      if(src[i]==="<" && (src[i+1]==="!"||src[i+1]==="?")){
+        var k=src.indexOf(">",i); k=(k===-1)?n:k+1;
+        html+='<span class="t-doctype">'+esc(src.slice(i,k))+"</span>"; i=k; continue;
+      }
+      if(src[i]==="<" && /[a-zA-Z\/]/.test(src[i+1]||"")){
+        var p=i+1, q=null;
+        while(p<n){ var c=src[p]; if(q){ if(c===q) q=null; } else { if(c==='"'||c==="'") q=c; else if(c===">") break; } p++; }
+        var end=(p<n)?p+1:n;
+        html+=hlTag(src.slice(i,end)); i=end; continue;
+      }
+      var t=src.indexOf("<",i); if(t===-1) t=n;
+      html+=esc(src.slice(i,t)); i=t;
+    }
+    return html;
+  }
+
+  /* ---------- preview ---------- */
+  var renderTimer=null;
+  function renderPreview(){
+    var perm = state.scripts
+      ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation"
+      : "allow-same-origin";
+    els.view.setAttribute("sandbox", perm);
+    // reassign srcdoc to force a clean reload with current permissions
+    els.view.srcdoc = state.html || "<!doctype html><meta charset=utf-8>";
+  }
+  function scheduleRender(){
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(renderPreview, 300);
+  }
+
+  /* ---------- editor sync ---------- */
+  var hlTimer=null;
+  function paintHighlight(){
+    els.hl.innerHTML = highlight(state.html) + "\n";
+    els.hl.scrollTop = els.src.scrollTop;
+    els.hl.scrollLeft = els.src.scrollLeft;
+  }
+  function setHTML(text, opts){
+    opts = opts || {};
+    state.html = text;
+    if(els.src.value !== text) els.src.value = text;
+    if(opts.now){ paintHighlight(); } else {
+      clearTimeout(hlTimer); hlTimer=setTimeout(paintHighlight, 60);
+    }
+    updateStatus();
+    save();
+    if(opts.render !== false) scheduleRender();
+    toggleEmpty();
+  }
+
+  els.src.addEventListener("input", function(){ setHTML(els.src.value, {now:false}); });
+  els.src.addEventListener("scroll", function(){
+    els.hl.scrollTop = els.src.scrollTop; els.hl.scrollLeft = els.src.scrollLeft;
+  });
+  // keep tab key inside the editor
+  els.src.addEventListener("keydown", function(e){
+    if(e.key==="Tab"){
+      e.preventDefault();
+      var s=this.selectionStart, en=this.selectionEnd;
+      this.value=this.value.slice(0,s)+"  "+this.value.slice(en);
+      this.selectionStart=this.selectionEnd=s+2;
+      setHTML(this.value,{now:false});
+    }
+  });
+
+  /* ---------- status ---------- */
+  function fmtBytes(b){
+    if(b<1024) return b+" B";
+    if(b<1048576) return (b/1024).toFixed(1)+" KB";
+    return (b/1048576).toFixed(2)+" MB";
+  }
+  function updateStatus(){
+    var lines = state.html ? state.html.split("\n").length : 0;
+    els.statLines.textContent = lines + (lines===1?" line":" lines");
+    var bytes = new Blob([state.html]).size;
+    els.statSize.textContent = fmtBytes(bytes);
+    els.fname.textContent = state.filename || (state.html ? "untitled.html" : "No file");
+    els.dot.style.background = state.html ? "var(--ok)" : "var(--ink-faint)";
+    els.dot.style.boxShadow = state.html ? "0 0 8px var(--ok)" : "none";
+  }
+  function toggleEmpty(){
+    els.empty.style.display = state.html ? "none" : "flex";
+  }
+
+  /* ---------- view mode ---------- */
+  function setMode(m){
+    state.mode=m;
+    els.workspace.setAttribute("data-mode", m);
+    ["preview","source","split"].forEach(function(x){
+      $("#m-"+x).setAttribute("aria-pressed", String(x===m));
+    });
+    save(); applyDevice();
+  }
+  $("#m-preview").onclick=function(){ setMode("preview"); };
+  $("#m-source").onclick=function(){ setMode("source"); };
+  $("#m-split").onclick=function(){ setMode("split"); };
+
+  /* ---------- device + zoom ---------- */
+  function applyDevice(){
+    var w = Number(state.device)||0;
+    var z = Number(state.zoom)||1;
+    var wrap = els.frameWrap;
+    if(w===0){
+      wrap.classList.remove("bezel");
+      wrap.style.width = (100*z) + "%";
+    } else {
+      wrap.classList.add("bezel");
+      // available width inside the stage (minus padding)
+      var avail = els.stage.clientWidth - 44;
+      var px = w * z;
+      wrap.style.width = Math.min(px, Math.max(220, avail)) + "px";
+    }
+  }
+  els.device.addEventListener("change", function(){ state.device=this.value; save(); applyDevice(); });
+  els.zoom.addEventListener("change", function(){ state.zoom=this.value; save(); applyDevice(); });
+  window.addEventListener("resize", applyDevice);
+
+  /* ---------- toggles ---------- */
+  $("#wrap").addEventListener("click", function(){
+    state.wrap=!state.wrap;
+    this.setAttribute("aria-pressed", String(state.wrap));
+    els.editor.classList.toggle("wrap", state.wrap);
+    save(); paintHighlight();
+  });
+  $("#scripts").addEventListener("click", function(){
+    state.scripts=!state.scripts;
+    this.setAttribute("aria-pressed", String(state.scripts));
+    save(); renderPreview();
+    toast(state.scripts ? "Scripts enabled" : "Scripts blocked");
+  });
+  $("#reload").addEventListener("click", renderPreview);
+
+  $("#theme").addEventListener("click", function(){
+    state.theme = state.theme==="dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", state.theme);
+    document.querySelector('meta[name=theme-color]').setAttribute("content", state.theme==="dark"?"#0b1622":"#eef3f8");
+    save(); paintHighlight();
+  });
+
+  /* ---------- open / read files ---------- */
+  function openPicker(){ els.file.click(); }
+  $("#open").onclick=openPicker;
+  $("#open2").onclick=openPicker;
+  els.file.addEventListener("change", function(){
+    if(this.files && this.files[0]) readFile(this.files[0]);
+    this.value="";
+  });
+  function readFile(f){
+    var r=new FileReader();
+    r.onload=function(){
+      state.filename=f.name;
+      setMode(state.mode==="source"?"split":state.mode);
+      setHTML(String(r.result||""), {now:true});
+      toast("Loaded " + f.name);
+    };
+    r.onerror=function(){ toast("Could not read that file"); };
+    r.readAsText(f);
+  }
+
+  /* ---------- drag & drop ---------- */
+  var dragDepth=0;
+  window.addEventListener("dragenter", function(e){ e.preventDefault(); dragDepth++; els.drop.classList.add("show"); });
+  window.addEventListener("dragover", function(e){ e.preventDefault(); });
+  window.addEventListener("dragleave", function(e){ e.preventDefault(); if(--dragDepth<=0){ dragDepth=0; els.drop.classList.remove("show"); } });
+  window.addEventListener("drop", function(e){
+    e.preventDefault(); dragDepth=0; els.drop.classList.remove("show");
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) readFile(f);
+  });
+
+  /* ---------- copy / download / new tab ---------- */
+  $("#copy").addEventListener("click", function(){
+    var done=function(){ toast("Source copied"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(state.html).then(done, fallbackCopy);
+    } else fallbackCopy();
+    function fallbackCopy(){
+      els.src.focus(); els.src.select();
+      try{ document.execCommand("copy"); done(); }catch(e){ toast("Copy not supported"); }
+      window.getSelection && window.getSelection().removeAllRanges();
+    }
+  });
+  $("#download").addEventListener("click", function(){
+    var name = state.filename || "untitled.html";
+    if(!/\.html?$/i.test(name)) name += ".html";
+    var blob=new Blob([state.html||""], {type:"text/html"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+    toast("Downloaded " + name);
+  });
+  $("#newtab").addEventListener("click", function(){
+    var blob=new Blob([state.html||""], {type:"text/html"});
+    var url=URL.createObjectURL(blob);
+    var w=window.open(url, "_blank");
+    if(!w) toast("Pop-up blocked — allow pop-ups to open in a tab");
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  });
+
+  /* ---------- sample ---------- */
+  $("#sample").addEventListener("click", function(){
+    state.filename="sample.html";
+    setHTML(SAMPLE, {now:true});
+    toast("Sample loaded");
+  });
+
+  /* ---------- toast ---------- */
+  var toastTimer=null;
+  function toast(msg){
+    els.toast.textContent=msg; els.toast.classList.add("show");
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ els.toast.classList.remove("show"); }, 1900);
+  }
+
+  /* ---------- keyboard ---------- */
+  document.addEventListener("keydown", function(e){
+    var mod = e.metaKey||e.ctrlKey;
+    if(mod && e.key.toLowerCase()==="o"){ e.preventDefault(); openPicker(); }
+    if(mod && e.key.toLowerCase()==="s"){ e.preventDefault(); $("#download").click(); }
+  });
+
+  /* ---------- PWA: installable manifest via blob + canvas icon ---------- */
+  function makeIcon(size){
+    var c=document.createElement("canvas"); c.width=c.height=size;
+    var x=c.getContext("2d");
+    var g=x.createLinearGradient(0,0,size,size);
+    g.addColorStop(0,"#0e2233"); g.addColorStop(1,"#08161f");
+    x.fillStyle=g; x.fillRect(0,0,size,size);
+    var cx=size/2, cy=size/2, r=size*0.3;
+    var lg=x.createRadialGradient(cx-r*0.4,cy-r*0.4,r*0.15,cx,cy,r);
+    lg.addColorStop(0,"#7ee6f2"); lg.addColorStop(0.55,"#1f9fb3"); lg.addColorStop(1,"#0a4f5e");
+    x.fillStyle=lg; x.beginPath(); x.arc(cx,cy,r,0,Math.PI*2); x.fill();
+    x.fillStyle="rgba(255,255,255,0.85)";
+    x.beginPath(); x.arc(cx-r*0.32,cy-r*0.3,r*0.22,0,Math.PI*2); x.fill();
+    x.strokeStyle="rgba(255,255,255,0.25)"; x.lineWidth=size*0.015;
+    x.beginPath(); x.arc(cx,cy,r,0,Math.PI*2); x.stroke();
+    return c.toDataURL("image/png");
+  }
+  function setupManifest(){
+    try{
+      var icon192=makeIcon(192), icon512=makeIcon(512);
+      var apple=document.createElement("link"); apple.rel="apple-touch-icon"; apple.href=icon192;
+      document.head.appendChild(apple);
+      var fav=document.createElement("link"); fav.rel="icon"; fav.href=makeIcon(64);
+      document.head.appendChild(fav);
+      var manifest={
+        name:"HTMLens — HTML Viewer", short_name:"HTMLens",
+        description:"View and inspect HTML files offline.",
+        start_url:".", display:"standalone",
+        background_color:"#0a131f", theme_color:"#0b1622",
+        icons:[
+          {src:icon192, sizes:"192x192", type:"image/png", purpose:"any"},
+          {src:icon512, sizes:"512x512", type:"image/png", purpose:"any maskable"}
+        ]
+      };
+      var blob=new Blob([JSON.stringify(manifest)], {type:"application/manifest+json"});
+      var link=document.createElement("link"); link.rel="manifest";
+      link.href=URL.createObjectURL(blob); document.head.appendChild(link);
+    }catch(e){}
+  }
+  var deferredPrompt=null;
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault(); deferredPrompt=e; els.install.hidden=false;
+  });
+  els.install.addEventListener("click", function(){
+    if(!deferredPrompt){ toast("Use your browser menu to install / Add to Home Screen"); return; }
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(){ deferredPrompt=null; els.install.hidden=true; });
+  });
+  window.addEventListener("appinstalled", function(){ els.install.hidden=true; toast("Installed"); });
+
+  /* ---------- sample content ---------- */
+  var SAMPLE = [
+    "<!doctype html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+    "  <title>Hello from HTMLens</title>",
+    "  <style>",
+    "    body{font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;",
+    "      background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:#eaf4ff}",
+    "    .card{background:#ffffff14;padding:34px 40px;border-radius:18px;backdrop-filter:blur(8px);",
+    "      border:1px solid #ffffff2a;text-align:center;max-width:420px}",
+    "    h1{margin:0 0 8px;font-size:30px} p{margin:0;color:#bcd3e6;line-height:1.6}",
+    "    button{margin-top:18px;padding:11px 20px;border:0;border-radius:10px;cursor:pointer;",
+    "      background:#46c8d8;color:#03242b;font-weight:600;font-size:15px}",
+    "  </style>",
+    "</head>",
+    "<body>",
+    '  <div class="card">',
+    "    <h1>It renders. ✨</h1>",
+    "    <p>This page is running live inside the preview pane. Edit the source on the left and watch it update.</p>",
+    '    <button onclick="this.textContent=\'Clicked \'+(++c)" data-x>Click me</button>',
+    "  </div>",
+    "  <scr"+"ipt>var c=0;<\/scr"+"ipt>",
+    "</body>",
+    "</html>"
+  ].join("\n");
+
+  /* ---------- boot ---------- */
+  function boot(){
+    load();
+    document.documentElement.setAttribute("data-theme", state.theme);
+    document.querySelector('meta[name=theme-color]').setAttribute("content", state.theme==="dark"?"#0b1622":"#eef3f8");
+    els.editor.classList.toggle("wrap", state.wrap);
+    $("#wrap").setAttribute("aria-pressed", String(state.wrap));
+    $("#scripts").setAttribute("aria-pressed", String(state.scripts));
+    els.device.value=String(state.device);
+    els.zoom.value=String(state.zoom);
+    setMode(state.mode);
+    setHTML(state.html || "", {now:true, render:true});
+    applyDevice();
+    setupManifest();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
