@@ -220,8 +220,12 @@
   body.fs header.bar{display:none;}
   body.fs footer.status{display:none;}
   body.fs .pane.code{display:none;}
-  body.fs .pane.preview{position:fixed;inset:0;z-index:150;background:var(--bg);}
-  body.fs .pane.preview .preview-stage{padding:0;}
+  body.fs .pane.preview{position:fixed;inset:0;z-index:150;background:#fff;}
+  body.fs .pane.preview .pane-head{display:none;}
+  body.fs .preview-stage{padding:0;background:#fff;}
+  body.fs .frame-wrap{width:100%!important;border-radius:0;}
+  body.fs .frame-shell{border-radius:0;border:0;padding:0;box-shadow:none;}
+  body.fs iframe#view{border-radius:0;}
 </style>
 </head>
 <body>
@@ -495,20 +499,24 @@
 
   /* ---------- device + zoom ---------- */
   function applyDevice(){
+    var wrap = els.frameWrap;
+    // full-screen: edge-to-edge, ignore device/zoom
+    if(document.body.classList.contains("fs")){
+      wrap.classList.remove("bezel");
+      wrap.style.width = "100%";
+      els.view.style.height = (window.innerHeight || els.stage.clientHeight || 600) + "px";
+      return;
+    }
     var w = Number(state.device)||0;
     var z = Number(state.zoom)||1;
-    var wrap = els.frameWrap;
     if(w===0){
       wrap.classList.remove("bezel");
       wrap.style.width = (100*z) + "%";
     } else {
       wrap.classList.add("bezel");
-      // available width inside the stage (minus padding)
       var avail = els.stage.clientWidth - 44;
-      var px = w * z;
-      wrap.style.width = Math.min(px, Math.max(220, avail)) + "px";
+      wrap.style.width = Math.min(w*z, Math.max(220, avail)) + "px";
     }
-    // give the iframe a real height — without this it falls back to ~150px
     var h = els.stage.clientHeight - (w===0 ? 36 : 64);
     els.view.style.height = Math.max(280, h) + "px";
   }
@@ -535,6 +543,7 @@
     document.body.classList.toggle("fs", on);
     if(on && state.mode==="source") setMode("split");
     setTimeout(applyDevice, 60); // recompute iframe height after layout change
+    if(on) toast("Full screen — tap ✕ Close to exit");
   }
   $("#fullscreen").addEventListener("click", function(){ setFullscreen(true); });
   $("#fsClose").addEventListener("click", function(){ setFullscreen(false); });
