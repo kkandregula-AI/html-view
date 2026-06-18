@@ -205,7 +205,9 @@
   @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px;}
   /* iOS Safari: keep the file input rendered (not display:none) so .click() works */
-  #file{position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;border:0;}
+  /* file inputs live inside <label> buttons; visually hidden but native-tappable via the label */
+  .open-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0;}
+  #open,#open2{cursor:pointer;}
   #brand{cursor:pointer;border:0;background:none;}
 
   /* full-screen preview stays inside the app — never opens a new tab/window */
@@ -242,10 +244,11 @@
     </div>
 
     <div class="actions">
-      <button class="btn primary" id="open">
+      <label class="btn primary" id="open">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h5l2 2h9v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
         Open file
-      </button>
+        <input type="file" id="file" class="open-input" />
+      </label>
       <button class="btn icon" id="install" hidden title="Install app">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg>
       </button>
@@ -312,7 +315,7 @@
       <h2>Bring your HTML into focus</h2>
       <p>Open a <span class="kbd">.html</span> file, paste markup, or drop a file anywhere on the window. Everything renders right here — fully offline, in Chrome or Safari.</p>
       <div class="row">
-        <button class="btn primary" id="open2">Open a file</button>
+        <label class="btn primary" id="open2">Open a file<input type="file" id="file2" class="open-input" /></label>
         <button class="btn" id="sample">Load a sample</button>
       </div>
     </div>
@@ -333,7 +336,6 @@
   <button class="fs-close" id="fsClose" aria-label="Exit full screen">✕ Close preview</button>
 
   <div class="toast" id="toast"></div>
-  <input type="file" id="file" />
 
 <script>
 (function(){
@@ -563,14 +565,19 @@
     save(); paintHighlight();
   });
 
-  /* ---------- open / read files ---------- */
-  function openPicker(){ els.file.click(); }
-  $("#open").onclick=openPicker;
-  $("#open2").onclick=openPicker;
-  els.file.addEventListener("change", function(){
-    if(this.files && this.files[0]) readFile(this.files[0]);
-    this.value="";
-  });
+  /* ---------- open / read files ----------
+     #open and #open2 are <label> elements wrapping the file inputs, so a tap opens
+     the picker natively — the reliable path on iOS Safari (no synthetic .click()). */
+  function openPicker(){ try{ els.file.click(); }catch(e){} } // used only by the Cmd/Ctrl+O shortcut
+  function wireInput(input){
+    if(!input) return;
+    input.addEventListener("change", function(){
+      if(this.files && this.files[0]) readFile(this.files[0]);
+      this.value="";
+    });
+  }
+  wireInput(els.file);
+  wireInput(document.getElementById("file2"));
   function readFile(f){
     var r=new FileReader();
     r.onload=function(){
